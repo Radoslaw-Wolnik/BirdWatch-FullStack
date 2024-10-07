@@ -3,10 +3,10 @@ import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import { PrismaClient } from "@prisma/client";
 import bcrypt from "bcrypt";
+import { UnauthorizedError } from '@/lib/errors';
+import logger from '@/lib/logger';
 
-// Ensure a singleton instance of PrismaClient
-let prisma = global.prisma || new PrismaClient();
-if (process.env.NODE_ENV !== "production") global.prisma = prisma;
+const prisma = new PrismaClient();
 
 export const authOptions = {
   adapter: PrismaAdapter(prisma),
@@ -19,7 +19,7 @@ export const authOptions = {
       },
       async authorize(credentials) {
         if (!credentials?.username || !credentials?.password) {
-          return null;
+          throw new UnauthorizedError("Invalid credentials");
         }
 
         const user = await prisma.user.findUnique({
@@ -27,15 +27,18 @@ export const authOptions = {
         });
 
         if (!user) {
-          return null;
+          logger.warn('Login attempt with non-existent username', { username: credentials.username });
+          throw new UnauthorizedError("Invalid credentials");
         }
 
         const isPasswordValid = await bcrypt.compare(credentials.password, user.password);
 
         if (!isPasswordValid) {
-          return null;
+          logger.warn('Login attempt with invalid password', { userId: user.id });
+          throw new UnauthorizedError("Invalid credentials");
         }
 
+        logger.info('User logged in', { userId: user.id });
         return {
           id: user.id.toString(),
           username: user.username,
@@ -46,18 +49,18 @@ export const authOptions = {
     })
   ],
   session: {
-    strategy: "jwt", // Using JWT strategy for sessions
+    strategy: "jwt",
   },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.role = user.role; // Add custom field 'role' to token
+        token.role = user.role;
       }
       return token;
     },
     async session({ session, token }) {
       if (session?.user) {
-        session.user.role = token.role; // Pass 'role' to session
+        session.user.role = token.role;
       }
       return session;
     },
@@ -66,5 +69,4 @@ export const authOptions = {
 
 const handler = NextAuth(authOptions);
 
-// Export handler for GET and POST methods
 export { handler as GET, handler as POST };

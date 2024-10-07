@@ -1,3 +1,5 @@
+import logger from './logger';
+
 export class AppError extends Error {
   statusCode: number;
   isOperational: boolean;
@@ -8,6 +10,7 @@ export class AppError extends Error {
     this.isOperational = true;
 
     Error.captureStackTrace(this, this.constructor);
+    logger.error(`AppError: ${message}`, { statusCode, stack: this.stack });
   }
 }
 
@@ -44,5 +47,11 @@ export class ConflictError extends AppError {
 export class InternalServerError extends AppError {
   constructor(message: string = 'Internal Server Error') {
     super(message, 500);
+  }
+}
+
+export class ValidationError extends AppError {
+  constructor(message: string = 'Validation Error') {
+    super(message, 422);
   }
 }

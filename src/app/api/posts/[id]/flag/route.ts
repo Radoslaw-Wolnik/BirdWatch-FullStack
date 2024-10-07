@@ -2,24 +2,31 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../../../auth/[...nextauth]/route";
 import { PrismaClient } from "@prisma/client";
+import { UnauthorizedError, BadRequestError, NotFoundError, InternalServerError } from '@/lib/errors';
+import logger from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
 export async function POST(req: Request, { params }: { params: { id: string } }) {
-  const session = await getServerSession(authOptions);
-
-  if (!session) {
-    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
-  }
-
-  const postId = parseInt(params.id);
-  const { reason } = await req.json();
-
-  if (!reason) {
-    return NextResponse.json({ error: "Reason is required" }, { status: 400 });
-  }
-
   try {
+    const session = await getServerSession(authOptions);
+
+    if (!session) {
+      throw new UnauthorizedError();
+    }
+
+    const postId = parseInt(params.id);
+    const { reason } = await req.json();
+
+    if (!reason) {
+      throw new BadRequestError("Reason is required");
+    }
+
+    const post = await prisma.birdPost.findUnique({ where: { id: postId } });
+    if (!post) {
+      throw new NotFoundError("Post not found");
+    }
+
     const flaggedPost = await prisma.flaggedPost.create({
       data: {
         postId: postId,
@@ -28,9 +35,13 @@ export async function POST(req: Request, { params }: { params: { id: string } })
       },
     });
 
+    logger.info('Post flagged', { userId: session.user.id, postId, reason });
     return NextResponse.json(flaggedPost, { status: 201 });
   } catch (error) {
-    console.error("Error flagging post:", error);
-    return NextResponse.json({ error: "Error flagging post" }, { status: 500 });
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    logger.error('Unhandled error in flagging post', { error });
+    throw new InternalServerError();
   }
 }

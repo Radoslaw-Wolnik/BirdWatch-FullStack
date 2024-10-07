@@ -1,17 +1,19 @@
 import { NextResponse } from 'next/server';
 import { PrismaClient } from "@prisma/client";
 import bcrypt from 'bcrypt';
+import { BadRequestError, ConflictError, InternalServerError } from '@/lib/errors';
+import logger from '@/lib/logger';
 
 const prisma = new PrismaClient();
 
 export async function POST(req: Request) {
-  const { username, email, password } = await req.json();
-
-  if (!username || !email || !password) {
-    return NextResponse.json({ error: "Missing required fields" }, { status: 400 });
-  }
-
   try {
+    const { username, email, password } = await req.json();
+
+    if (!username || !email || !password) {
+      throw new BadRequestError("Missing required fields");
+    }
+
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
@@ -22,7 +24,7 @@ export async function POST(req: Request) {
     });
 
     if (existingUser) {
-      return NextResponse.json({ error: "Username or email already exists" }, { status: 409 });
+      throw new ConflictError("Username or email already exists");
     }
 
     const hashedPassword = await bcrypt.hash(password, 10);
@@ -36,9 +38,13 @@ export async function POST(req: Request) {
     });
 
     const { password: _, ...userWithoutPassword } = newUser;
+    logger.info('New user registered', { userId: newUser.id });
     return NextResponse.json(userWithoutPassword, { status: 201 });
   } catch (error) {
-    console.error("Error registering user:", error);
-    return NextResponse.json({ error: "Error registering user" }, { status: 500 });
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    logger.error('Unhandled error in user registration', { error });
+    throw new InternalServerError();
   }
 }

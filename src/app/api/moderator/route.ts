@@ -26,4 +26,64 @@ export async function GET(req: Request) {
     const flaggedPosts = await prisma.flaggedPost.findMany({
       where: { status: 'PENDING' },
       include: { post: true, user: true },
-      orderBy:
+      orderBy: { createdAt: 'desc' },
+      skip: (page - 1) * limit,
+      take: limit,
+    });
+
+    logger.info('Moderator fetched flagged posts', { moderatorId: session.user.id, page, limit });
+    return NextResponse.json(flaggedPosts);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    logger.error('Unhandled error in fetching flagged posts', { error });
+    throw new InternalServerError();
+  }
+}
+
+export async function POST(req: Request) {
+  try {
+    const session = await getServerSession(authOptions);
+
+    if (!session) {
+      throw new UnauthorizedError();
+    }
+
+    if (session.user.role !== 'MODERATOR') {
+      throw new ForbiddenError("Only moderators can access this route");
+    }
+
+    const { flaggedPostId, action } = await req.json();
+
+    if (!flaggedPostId || !action) {
+      throw new BadRequestError("Flagged post ID and action are required");
+    }
+
+    if (action !== 'RESOLVE' && action !== 'DISMISS') {
+      throw new BadRequestError("Invalid action. Must be either 'RESOLVE' or 'DISMISS'");
+    }
+
+    const updatedFlaggedPost = await prisma.flaggedPost.update({
+      where: { id: flaggedPostId },
+      data: { status: action === 'RESOLVE' ? 'RESOLVED' : 'DISMISSED' },
+    });
+
+    if (action === 'RESOLVE') {
+      await prisma.birdPost.delete({
+        where: { id: updatedFlaggedPost.postId },
+      });
+      logger.info('Moderator resolved and deleted flagged post', { moderatorId: session.user.id, flaggedPostId, postId: updatedFlaggedPost.postId });
+    } else {
+      logger.info('Moderator dismissed flagged post', { moderatorId: session.user.id, flaggedPostId });
+    }
+
+    return NextResponse.json(updatedFlaggedPost);
+  } catch (error) {
+    if (error instanceof AppError) {
+      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    }
+    logger.error('Unhandled error in updating flagged post', { error });
+    throw new InternalServerError();
+  }
+}
