@@ -1,0 +1,109 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                Int           @id @default(autoincrement())
+  username          String        @unique
+  email             String        @unique
+  password          String
+  role              UserRole      @default(USER)
+  profilePicture    String?
+  createdAt         DateTime      @default(now())
+  lastActive        DateTime      @default(now())
+  posts             BirdPost[]
+  likes             Like[]
+  friends           Friendship[]  @relation("UserFriends")
+  friendsOf         Friendship[]  @relation("FriendsOfUser")
+  moderatorRequests ModeratorRequest[]
+  flaggedPosts      FlaggedPost[]
+  deactivated       DateTime?
+}
+
+model BirdPost {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  user        User      @relation(fields: [userId], references: [id])
+  birdSpecies String
+  description String
+  latitude    Float
+  longitude   Float
+  photos      String[]
+  createdAt   DateTime  @default(now())
+  likes       Like[]
+  flags       FlaggedPost[]
+}
+
+model Like {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  postId    Int
+  post      BirdPost @relation(fields: [postId], references: [id])
+  createdAt DateTime @default(now())
+
+  @@unique([userId, postId])
+}
+
+model Friendship {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  user      User     @relation("UserFriends", fields: [userId], references: [id])
+  friendId  Int
+  friend    User     @relation("FriendsOfUser", fields: [friendId], references: [id])
+  status    FriendshipStatus
+  createdAt DateTime @default(now())
+
+  @@unique([userId, friendId])
+}
+
+model ModeratorRequest {
+  id           Int      @id @default(autoincrement())
+  userId       Int
+  user         User     @relation(fields: [userId], references: [id])
+  description  String
+  qualifications String
+  location     String
+  status       RequestStatus @default(PENDING)
+  createdAt    DateTime @default(now())
+}
+
+model FlaggedPost {
+  id        Int      @id @default(autoincrement())
+  postId    Int
+  post      BirdPost @relation(fields: [postId], references: [id])
+  userId    Int
+  user      User     @relation(fields: [userId], references: [id])
+  reason    String
+  status    FlagStatus @default(PENDING)
+  createdAt DateTime @default(now())
+}
+
+enum UserRole {
+  USER
+  MODERATOR
+  ADMIN
+}
+
+enum FriendshipStatus {
+  PENDING
+  ACCEPTED
+  DECLINED
+}
+
+enum RequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum FlagStatus {
+  PENDING
+  RESOLVED
+  DISMISSED
+}
