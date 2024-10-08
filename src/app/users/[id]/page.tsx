@@ -6,8 +6,9 @@ import React, { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Layout from '@/components/Layout';
 import UserProfile from '@/components/UserProfile';
+import { withAuth } from '@/lib/auth';
 
-export default function OtherUserProfile() {
+function OtherUserProfile() {
   const { id } = useParams();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
@@ -30,14 +31,16 @@ export default function OtherUserProfile() {
     fetchProfile();
   }, [id]);
 
-  if (loading) return <Layout><div>Loading profile...</div></Layout>;
-  if (error) return <Layout><div className="text-red-500">{error}</div></Layout>;
-  if (!user) return <Layout><div>User not found</div></Layout>;
+  if (loading) return <Layout><div className="text-center py-10">Loading profile...</div></Layout>;
+  if (error) return <Layout><div className="text-red-500 text-center py-10">{error}</div></Layout>;
+  if (!user) return <Layout><div className="text-center py-10">User not found</div></Layout>;
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold mb-6">{user.username}'s Profile</h1>
+      <h1 className="text-3xl font-bold mb-6 text-primary-800">{user.username}'s Profile</h1>
       <UserProfile user={user} isOwnProfile={false} />
     </Layout>
   );
 }
+
+export default withAuth(OtherUserProfile);

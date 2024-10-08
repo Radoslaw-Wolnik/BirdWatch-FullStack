@@ -4,8 +4,9 @@
 
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
+import { withRole } from '@/lib/auth';
 
-export default function AdminDashboard() {
+function AdminDashboard() {
   const [inactiveUsers, setInactiveUsers] = useState([]);
   const [moderatorRequests, setModeratorRequests] = useState([]);
   const [flaggedPosts, setFlaggedPosts] = useState([]);
@@ -86,22 +87,22 @@ export default function AdminDashboard() {
     }
   };
 
-  if (loading) return <Layout><div>Loading admin data...</div></Layout>;
-  if (error) return <Layout><div className="text-red-500">{error}</div></Layout>;
+  if (loading) return <Layout><div className="text-center py-10">Loading admin data...</div></Layout>;
+  if (error) return <Layout><div className="text-red-500 text-center py-10">{error}</div></Layout>;
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold mb-6">Admin Dashboard</h1>
+      <h1 className="text-3xl font-bold mb-6 text-primary-800">Admin Dashboard</h1>
 
       <section className="mb-8">
-        <h2 className="text-2xl font-semibold mb-4">Inactive Users</h2>
+        <h2 className="text-2xl font-semibold mb-4 text-secondary-700">Inactive Users</h2>
         <ul className="space-y-2">
           {inactiveUsers.map(user => (
-            <li key={user.id} className="flex justify-between items-center">
+            <li key={user.id} className="flex justify-between items-center bg-white p-3 rounded-md shadow">
               <span>{user.username} - Last active: {new Date(user.lastActive).toLocaleDateString()}</span>
               <button
                 onClick={() => handleDeleteUser(user.id)}
-                className="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm"
+                className="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded-md text-sm transition duration-300"
               >
                 Delete User
               </button>
@@ -111,7 +112,7 @@ export default function AdminDashboard() {
       </section>
 
       <section className="mb-8">
-        <h2 className="text-2xl font-semibold mb-4">Moderator Requests</h2>
+        <h2 className="text-2xl font-semibold mb-4 text-secondary-700">Moderator Requests</h2>
         <ul className="space-y-4">
           {moderatorRequests.map(request => (
             <li key={request.id} className="bg-white shadow-md rounded-lg p-4">
@@ -121,13 +122,13 @@ export default function AdminDashboard() {
               <div className="mt-2 space-x-2">
                 <button
                   onClick={() => handleModeratorRequest(request.id, 'approve')}
-                  className="bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm"
+                  className="bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded-md text-sm transition duration-300"
                 >
                   Approve
                 </button>
                 <button
                   onClick={() => handleModeratorRequest(request.id, 'reject')}
-                  className="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm"
+                  className="bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded-md text-sm transition duration-300"
                 >
                   Reject
                 </button>
@@ -138,7 +139,7 @@ export default function AdminDashboard() {
       </section>
 
       <section>
-        <h2 className="text-2xl font-semibold mb-4">Flagged Posts</h2>
+        <h2 className="text-2xl font-semibold mb-4 text-secondary-700">Flagged Posts</h2>
         <ul className="space-y-4">
           {flaggedPosts.map(post => (
             <li key={post.id} className="bg-white shadow-md rounded-lg p-4">
@@ -148,7 +149,7 @@ export default function AdminDashboard() {
               <p><strong>Reason:</strong> {post.reason}</p>
               <button
                 onClick={() => handleDeletePost(post.post.id)}
-                className="mt-2 bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded text-sm"
+                className="mt-2 bg-red-500 hover:bg-red-600 text-white font-bold py-1 px-3 rounded-md text-sm transition duration-300"
               >
                 Delete Post
               </button>
@@ -159,3 +160,5 @@ export default function AdminDashboard() {
     </Layout>
   );
 }
+
+export default withRole(AdminDashboard, ['ADMIN']);

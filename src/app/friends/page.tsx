@@ -4,8 +4,9 @@
 
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
+import { withAuth } from '@/lib/auth';
 
-export default function Friends() {
+function Friends() {
   const [friends, setFriends] = useState([]);
   const [friendRequests, setFriendRequests] = useState([]);
   const [searchTerm, setSearchTerm] = useState('');
@@ -79,33 +80,33 @@ export default function Friends() {
     }
   };
 
-  if (loading) return <Layout><div>Loading friends data...</div></Layout>;
-  if (error) return <Layout><div className="text-red-500">{error}</div></Layout>;
+  if (loading) return <Layout><div className="text-center py-10">Loading friends data...</div></Layout>;
+  if (error) return <Layout><div className="text-red-500 text-center py-10">{error}</div></Layout>;
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold mb-6">Friends</h1>
+      <h1 className="text-3xl font-bold mb-6 text-primary-800">Friends</h1>
 
       <div className="mb-8">
-        <h2 className="text-2xl font-semibold mb-4">Search Users</h2>
+        <h2 className="text-2xl font-semibold mb-4 text-secondary-700">Search Users</h2>
         <div className="flex space-x-2">
           <input
             type="text"
             value={searchTerm}
             onChange={(e) => setSearchTerm(e.target.value)}
-            className="flex-grow px-3 py-2 border rounded"
+            className="flex-grow px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500"
             placeholder="Search by username"
           />
-          <button onClick={handleSearch} className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded">
+          <button onClick={handleSearch} className="bg-secondary-500 hover:bg-secondary-600 text-white font-bold py-2 px-4 rounded-md transition duration-300">
             Search
           </button>
         </div>
         {searchResults.length > 0 && (
           <ul className="mt-4 space-y-2">
             {searchResults.map((user) => (
-              <li key={user.id} className="flex justify-between items-center">
+              <li key={user.id} className="flex justify-between items-center bg-white p-3 rounded-md shadow">
                 <span>{user.username}</span>
-                <button onClick={() => handleSendRequest(user.id)} className="bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm">
+                <button onClick={() => handleSendRequest(user.id)} className="bg-primary-500 hover:bg-primary-600 text-white font-bold py-1 px-3 rounded-md text-sm transition duration-300">
                   Add Friend
                 </button>
               </li>
@@ -115,15 +116,15 @@ export default function Friends() {
       </div>
 
       <div className="mb-8">
-        <h2 className="text-2xl font-semibold mb-4">Friend Requests</h2>
+        <h2 className="text-2xl font-semibold mb-4 text-secondary-700">Friend Requests</h2>
         {friendRequests.length === 0 ? (
-          <p>No pending friend requests.</p>
+          <p className="text-gray-600">No pending friend requests.</p>
         ) : (
           <ul className="space-y-2">
             {friendRequests.map((request) => (
-              <li key={request.id} className="flex justify-between items-center">
+              <li key={request.id} className="flex justify-between items-center bg-white p-3 rounded-md shadow">
                 <span>{request.user.username}</span>
-                <button onClick={() => handleAcceptRequest(request.id)} className="bg-green-500 hover:bg-green-600 text-white font-bold py-1 px-3 rounded text-sm">
+                <button onClick={() => handleAcceptRequest(request.id)} className="bg-primary-500 hover:bg-primary-600 text-white font-bold py-1 px-3 rounded-md text-sm transition duration-300">
                   Accept
                 </button>
               </li>
@@ -133,15 +134,15 @@ export default function Friends() {
       </div>
 
       <div>
-        <h2 className="text-2xl font-semibold mb-4">Your Friends</h2>
+        <h2 className="text-2xl font-semibold mb-4 text-secondary-700">Your Friends</h2>
         {friends.length === 0 ? (
-          <p>You haven't added any friends yet.</p>
+          <p className="text-gray-600">You haven't added any friends yet.</p>
         ) : (
           <ul className="space-y-2">
             {friends.map((friend) => (
-              <li key={friend.id} className="flex justify-between items-center">
+              <li key={friend.id} className="flex justify-between items-center bg-white p-3 rounded-md shadow">
                 <span>{friend.username}</span>
-                <button className="bg-blue-500 hover:bg-blue-600 text-white font-bold py-1 px-3 rounded text-sm">
+                <button className="bg-secondary-500 hover:bg-secondary-600 text-white font-bold py-1 px-3 rounded-md text-sm transition duration-300">
                   View Profile
                 </button>
               </li>
@@ -152,3 +153,5 @@ export default function Friends() {
     </Layout>
   );
 }
+
+export default withAuth(Friends);

@@ -4,8 +4,9 @@
 
 import React, { useState, useEffect } from 'react';
 import Layout from '@/components/Layout';
+import { withRole } from '@/lib/auth';
 
-export default function Moderation() {
+function Moderation() {
   const [flaggedPosts, setFlaggedPosts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -35,39 +36,38 @@ export default function Moderation() {
         body: JSON.stringify({ action })
       });
       if (!response.ok) throw new Error('Failed to moderate post');
-      // Update UI to reflect moderated post
       setFlaggedPosts(flaggedPosts.filter(post => post.id !== postId));
     } catch (err) {
       setError('Failed to moderate post. Please try again.');
     }
   };
 
-  if (loading) return <Layout><div>Loading moderation data...</div></Layout>;
-  if (error) return <Layout><div className="text-red-500">{error}</div></Layout>;
+  if (loading) return <Layout><div className="text-center py-10">Loading moderation data...</div></Layout>;
+  if (error) return <Layout><div className="text-red-500 text-center py-10">{error}</div></Layout>;
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold mb-6">Moderation Dashboard</h1>
+      <h1 className="text-3xl font-bold mb-6 text-primary-800">Moderation Dashboard</h1>
       {flaggedPosts.length === 0 ? (
-        <p>No flagged posts to review.</p>
+        <p className="text-gray-600 text-center py-10">No flagged posts to review.</p>
       ) : (
         <ul className="space-y-6">
           {flaggedPosts.map((post) => (
-            <li key={post.id} className="bg-white shadow-md rounded-lg p-4">
-              <h3 className="text-xl font-semibold mb-2">{post.post.birdSpecies.join(', ')}</h3>
-              <p className="mb-2">{post.post.description}</p>
+            <li key={post.id} className="bg-white shadow-md rounded-lg p-6">
+              <h3 className="text-xl font-semibold mb-2 text-secondary-700">{post.post.birdSpecies.join(', ')}</h3>
+              <p className="mb-2 text-gray-600">{post.post.description}</p>
               <p className="text-sm text-gray-500 mb-2">Posted by: {post.post.user.username}</p>
               <p className="text-sm text-gray-500 mb-4">Flagged reason: {post.reason}</p>
-              <div className="flex space-x-2">
+              <div className="flex space-x-4">
                 <button
                   onClick={() => handleModeratePost(post.id, 'RESOLVE')}
-                  className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded"
+                  className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-md transition duration-300"
                 >
                   Remove Post
                 </button>
                 <button
                   onClick={() => handleModeratePost(post.id, 'DISMISS')}
-                  className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded"
+                  className="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-md transition duration-300"
                 >
                   Dismiss Flag
                 </button>
@@ -79,3 +79,5 @@ export default function Moderation() {
     </Layout>
   );
 }
+
+export default withRole(Moderation, ['MODERATOR', 'ADMIN']);
