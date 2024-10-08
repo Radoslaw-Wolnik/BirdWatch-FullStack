@@ -1,12 +1,14 @@
-// File: src/app/profile/page.tsx
+// File: src/app/users/[id]/page.tsx
 
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useParams } from 'next/navigation';
 import Layout from '@/components/Layout';
 import UserProfile from '@/components/UserProfile';
 
-export default function OwnProfile() {
+export default function OtherUserProfile() {
+  const { id } = useParams();
   const [user, setUser] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
@@ -14,7 +16,7 @@ export default function OwnProfile() {
   useEffect(() => {
     const fetchProfile = async () => {
       try {
-        const response = await fetch('/api/user/profile');
+        const response = await fetch(`/api/users/${id}`);
         if (!response.ok) throw new Error('Failed to fetch profile');
         const data = await response.json();
         setUser(data);
@@ -26,22 +28,7 @@ export default function OwnProfile() {
     };
 
     fetchProfile();
-  }, []);
-
-  const handleUpdateProfile = async (updatedData) => {
-    try {
-      const response = await fetch('/api/user/profile', {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updatedData)
-      });
-      if (!response.ok) throw new Error('Failed to update profile');
-      const updatedUser = await response.json();
-      setUser(updatedUser);
-    } catch (err) {
-      setError('Failed to update profile. Please try again.');
-    }
-  };
+  }, [id]);
 
   if (loading) return <Layout><div>Loading profile...</div></Layout>;
   if (error) return <Layout><div className="text-red-500">{error}</div></Layout>;
@@ -49,12 +36,8 @@ export default function OwnProfile() {
 
   return (
     <Layout>
-      <h1 className="text-3xl font-bold mb-6">Your Profile</h1>
-      <UserProfile 
-        user={user} 
-        isOwnProfile={true} 
-        onUpdateProfile={handleUpdateProfile} 
-      />
+      <h1 className="text-3xl font-bold mb-6">{user.username}'s Profile</h1>
+      <UserProfile user={user} isOwnProfile={false} />
     </Layout>
   );
 }
