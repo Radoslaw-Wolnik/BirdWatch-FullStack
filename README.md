@@ -22,7 +22,7 @@ A community-driven bird-watching application built with Next.js, allowing users 
 
 ## Prerequisites
 
-- Node.js (v18 or later)
+- Node.js (v14 or later)
 - PostgreSQL (v12 or later)
 - npm or yarn
 
@@ -64,48 +64,61 @@ A community-driven bird-watching application built with Next.js, allowing users 
 
 The server should now be running on `http://localhost:3000`.
 
-## Usage
-
-1. Register a new user account through the web interface.
-2. Log in to access the dashboard.
-3. Create bird sighting posts, including location, species, and optional photos.
-4. Explore the map view to see bird sightings in your area.
-5. Connect with other users by sending friend requests.
-6. Moderate content if you have moderator privileges.
-
-For detailed API documentation, please refer to the [API.md](API.md) file.
-
-## Development
-
-The project is set up for development with hot reloading. Simply run:
-
-```
-npm run dev
-```
-
-## Testing
-
-Run the test suite with:
-
-```
-npm test
-```
-
 ## Deployment
-
-For production deployment:
 
 1. Build the project:
    ```
    npm run build
    ```
 
-2. Start the server:
+2. Start the production server:
    ```
    npm start
    ```
 
-Consider using a service like Vercel for easy deployment of Next.js applications.
+### Troubleshooting
+
+If you encounter issues with `@lib` imports or Prisma models not being recognized:
+
+1. Ensure that the `tsconfig.json` file includes the correct path aliases:
+   ```json
+   {
+     "compilerOptions": {
+       "baseUrl": ".",
+       "paths": {
+         "@/*": ["./src/*"],
+         "@/lib/*": ["./src/lib/*"]
+       }
+     }
+   }
+   ```
+
+2. Regenerate Prisma client:
+   ```
+   npx prisma generate
+   ```
+
+3. If using VS Code, restart the TypeScript server:
+   - Open the command palette (Ctrl+Shift+P or Cmd+Shift+P)
+   - Type "TypeScript: Restart TS Server" and select it
+
+4. Ensure that your `next.config.js` file is properly configured:
+   ```javascript
+   /** @type {import('next').NextConfig} */
+   const nextConfig = {
+     reactStrictMode: true,
+     swcMinify: true,
+   }
+   
+   module.exports = nextConfig
+   ```
+
+5. Clear Next.js cache:
+   ```
+   rm -rf .next
+   ```
+
+After making these changes, rebuild and restart your development server.
 
 ## Contributing
 
