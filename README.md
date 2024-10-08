@@ -52,7 +52,12 @@ A community-driven bird-watching application built with Next.js, allowing users 
    npx prisma db push
    ```
 
-5. Run the development server:
+5. Create uploads directory for images:
+   ```
+   mkdir -p public/uploads
+   ```
+
+6. Run the development server:
    ```
    npm run dev
    ```
