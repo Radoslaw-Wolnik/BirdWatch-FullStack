@@ -66,6 +66,8 @@ The server should now be running on `http://localhost:3000`.
 
 ## Deployment
 
+### Standard Deployment
+
 1. Build the project:
    ```
    npm run build
@@ -76,7 +78,7 @@ The server should now be running on `http://localhost:3000`.
    npm start
    ```
 
-### Troubleshooting
+#### Troubleshooting Standard deployment
 
 If you encounter issues with `@lib` imports or Prisma models not being recognized:
 
@@ -119,6 +121,71 @@ If you encounter issues with `@lib` imports or Prisma models not being recognize
    ```
 
 After making these changes, rebuild and restart your development server.
+
+### Docker Deployment
+
+To deploy the application using Docker, follow these steps:
+
+1. Ensure you have Docker and Docker Compose installed on your system.
+
+2. Create a `.env` file in the root directory with the following variables:
+   ```
+   DATABASE_URL=postgresql://user:password@db:5432/birdwatch
+   NEXTAUTH_SECRET=your_nextauth_secret
+   NEXTAUTH_URL=http://localhost:3000
+   DB_USER=your_db_user
+   DB_PASSWORD=your_db_password
+   DB_NAME=birdwatch
+   ```
+
+3. Create the uploads directory if it doesn't exist:
+   ```
+   mkdir -p public/uploads
+   ```
+
+4. Set the correct permissions for the uploads directory:
+   ```
+   chmod 777 public/uploads
+   ```
+
+5. Build and start the Docker containers:
+   ```
+   docker-compose up -d --build
+   ```
+
+6. Run database migrations:
+   ```
+   docker-compose exec app npx prisma migrate deploy
+   ```
+
+7. The application should now be running at `http://localhost:3000`.
+
+To stop the containers:
+```
+docker-compose down
+```
+
+#### Handling Uploads
+
+The `public/uploads` directory is mounted as a volume in the Docker container. This means that any images uploaded through the application will be stored in this directory on your host machine, ensuring persistence even if the container is stopped or removed.
+
+To back up uploaded images, you can simply copy the `public/uploads` directory from your host machine.
+
+To restore uploads, copy your backed-up `uploads` directory into the `public` folder before starting the Docker containers.
+
+#### Troubleshooting Docker Deployment
+
+- If you encounter issues with file permissions for the uploads directory, ensure that the directory has the correct permissions:
+  ```
+  chmod -R 777 public/uploads
+  ```
+
+- If the database connection fails, make sure the `DATABASE_URL` in your `.env` file uses `db` as the host (the name of the database service in docker-compose.yml).
+
+- To view logs for troubleshooting:
+  ```
+  docker-compose logs app
+  ```
 
 ## Contributing
 

@@ -11,6 +11,8 @@ services:
       - NEXTAUTH_URL=${NEXTAUTH_URL}
     depends_on:
       - db
+    volumes:
+      - ./public/uploads:/app/public/uploads
 
   db:
     image: postgres:13
@@ -23,3 +25,4 @@ services:
 
 volumes:
   postgres_data:
+  uploads:
