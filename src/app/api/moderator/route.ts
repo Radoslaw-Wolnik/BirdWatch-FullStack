@@ -4,6 +4,7 @@ import { authOptions } from "../auth/[...nextauth]/route";
 import { PrismaClient } from "@prisma/client";
 import { UnauthorizedError, ForbiddenError, BadRequestError, InternalServerError } from '@/lib/errors';
 import logger from '@/lib/logger';
+import { calculateDistance } from '@/lib/geoUtils';
 
 const prisma = new PrismaClient();
 
@@ -22,17 +23,40 @@ export async function GET(req: Request) {
     const { searchParams } = new URL(req.url);
     const page = parseInt(searchParams.get('page') || '1');
     const limit = parseInt(searchParams.get('limit') || '10');
+    const lat = parseFloat(searchParams.get('lat') || '0');
+    const lon = parseFloat(searchParams.get('lon') || '0');
+
+    const moderator = await prisma.user.findUnique({
+      where: { id: parseInt(session.user.id) },
+      select: { id: true, moderatorRequests: { select: { location: true } } }
+    });
+
+    if (!moderator || !moderator.moderatorRequests[0]) {
+      throw new BadRequestError("Moderator location not found");
+    }
+
+    const [moderatorLat, moderatorLon] = moderator.moderatorRequests[0].location.split(',').map(Number);
 
     const flaggedPosts = await prisma.flaggedPost.findMany({
       where: { status: 'PENDING' },
       include: { post: true, user: true },
       orderBy: { createdAt: 'desc' },
-      skip: (page - 1) * limit,
-      take: limit,
     });
 
+    const filteredPosts = flaggedPosts.filter(flaggedPost => {
+      const distance = calculateDistance(
+        moderatorLat,
+        moderatorLon,
+        flaggedPost.post.latitude,
+        flaggedPost.post.longitude
+      );
+      return distance <= 1000; // 1000 km radius
+    });
+
+    const paginatedPosts = filteredPosts.slice((page - 1) * limit, page * limit);
+
     logger.info('Moderator fetched flagged posts', { moderatorId: session.user.id, page, limit });
-    return NextResponse.json(flaggedPosts);
+    return NextResponse.json(paginatedPosts);
   } catch (error) {
     if (error instanceof AppError) {
       return NextResponse.json({ error: error.message }, { status: error.statusCode });

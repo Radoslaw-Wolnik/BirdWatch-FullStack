@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import { getServerSession } from "next-auth/next";
 import { authOptions } from "../auth/[...nextauth]/route";
 import { PrismaClient } from "@prisma/client";
-import { UnauthorizedError, ForbiddenError, NotFoundError, InternalServerError } from '@/lib/errors';
+import { UnauthorizedError, ForbiddenError, BadRequestError, InternalServerError } from '@/lib/errors';
 import logger from '@/lib/logger';
 
 const prisma = new PrismaClient();
@@ -42,7 +42,8 @@ export async function GET(req: Request) {
 }
 
 async function getInactiveUsers() {
-  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+  const thirtyDaysAgo = new Date();
+  thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
   
   try {
     const inactiveUsers = await prisma.user.findMany({
