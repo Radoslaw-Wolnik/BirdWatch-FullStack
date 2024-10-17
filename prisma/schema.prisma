@@ -24,13 +24,71 @@ model User {
   moderatorRequests ModeratorRequest[]
   flaggedPosts      FlaggedPost[]
   deactivated       DateTime?
+  tokens            Token[]
+  birdIcons         BirdIcon[]
+  submittedIcons    SubmitBirdIcon[]
+}
+
+model Token {
+  id        Int       @id @default(autoincrement())
+  user      User      @relation(fields: [userId], references: [id])
+  userId    Int // Foreign key to User
+  token     String    @unique
+  type      TokenType // Enum for token types
+  expiresAt DateTime // Expiration date of the token
+  createdAt DateTime  @default(now())
+  isActive  Boolean   @default(true)
+}
+
+enum TokenType {
+  PASSWORD_RESET
+  ACCOUNT_VERIFICATION
+  ONE_TIME_LOGIN
+  DEACTIVATION
+}
+
+
+model Bird {
+  id          Int          @id @default(autoincrement())
+  name        String
+  species     String
+  description String
+  iconId      Int?         @unique // Reference to BirdIcon
+  icon        BirdIcon?    @relation(fields: [iconId], references: [id])
+  birdPosts   BirdPost[]
+}
+
+model BirdIcon {
+  id        Int      @id @default(autoincrement())
+  url       String   // URL to the bird icon image
+  birdId    Int?     // Optional relationship with Bird
+  bird      Bird?    
+  uploadedBy User    @relation(fields: [uploadedById], references: [id])
+  uploadedById Int
+  verified  Boolean  @default(false) // BirdIcon needs to be verified before use
+}
+
+model SubmitBirdIcon {
+  id          Int      @id @default(autoincrement())
+  url         String   // URL to the submitted bird icon image
+  userId      Int      // User submitting the icon
+  user        User     @relation(fields: [userId], references: [id])
+  status      SubmissionStatus @default(PENDING)
+  createdAt   DateTime @default(now())
+}
+
+enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
 }
 
 model BirdPost {
   id          Int       @id @default(autoincrement())
   userId      Int
   user        User      @relation(fields: [userId], references: [id])
-  birdSpecies String[]
+  birdId      Int
+  bird        Bird      @relation(fields: [birdId], references: [id])
   description String
   latitude    Float
   longitude   Float
@@ -120,3 +178,4 @@ enum FlagStatus {
   RESOLVED
   DISMISSED
 }
+
