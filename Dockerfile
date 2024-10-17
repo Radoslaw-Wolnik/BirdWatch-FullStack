@@ -7,14 +7,17 @@ WORKDIR /app
 # Copy package.json and package-lock.json
 COPY package*.json ./
 
+# Copy prisma directory (including schema.prisma)
+COPY prisma ./prisma
+
 # Install dependencies
 RUN npm ci
 
-# Copy the current directory contents into the container
-COPY . .
-
 # Generate Prisma client
 RUN npx prisma generate
+
+# Copy the current directory contents into the container
+COPY . .
 
 # Build the Next.js app
 RUN npm run build
