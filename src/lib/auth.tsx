@@ -1,16 +1,15 @@
-// File: src/lib/auth.tsx
-
 import { useSession } from 'next-auth/react';
 import { useRouter } from 'next/navigation';
-import { useEffect } from 'react';
+import { useEffect, ComponentType } from 'react';
+import { SafeUser, UserRole } from '../types/global';
 
-export function withAuth(Component) {
-  return function AuthenticatedComponent(props) {
+export function withAuth<P extends object>(Component: ComponentType<P>) {
+  return function AuthenticatedComponent(props: P) {
     const { data: session, status } = useSession();
     const router = useRouter();
 
     useEffect(() => {
-      if (status === 'loading') return; // Do nothing while loading
+      if (status === 'loading') return;
       if (!session) router.push('/login');
     }, [session, status, router]);
 
@@ -24,11 +23,15 @@ export function withAuth(Component) {
 
 export function useAuth() {
   const { data: session, status } = useSession();
-  return { user: session?.user, isLoading: status === 'loading', isAuthenticated: !!session };
+  return { 
+    user: session?.user as SafeUser | undefined, 
+    isLoading: status === 'loading', 
+    isAuthenticated: !!session 
+  };
 }
 
-export function withRole(Component, allowedRoles: string[]) {
-  return function RoleProtectedComponent(props) {
+export function withRole<P extends object>(Component: ComponentType<P>, allowedRoles: UserRole[]) {
+  return function RoleProtectedComponent(props: P) {
     const { user, isLoading } = useAuth();
     const router = useRouter();
 
