@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from '@/lib/auth';
 import { PrismaClient } from "@prisma/client";
-import { UnauthorizedError, InternalServerError } from '@/lib/errors';
+import { UnauthorizedError, InternalServerError, AppError } from '@/lib/errors';
 import logger from '@/lib/logger';
 
 const prisma = new PrismaClient();
@@ -21,14 +21,14 @@ export async function GET(req: Request) {
     const userFriends = await prisma.friendship.findMany({
       where: {
         OR: [
-          { userId: parseInt(session.user.id), status: 'ACCEPTED' },
-          { friendId: parseInt(session.user.id), status: 'ACCEPTED' },
+          { userId: session.user.id, status: 'ACCEPTED' },
+          { friendId: session.user.id, status: 'ACCEPTED' },
         ],
       },
     });
 
     const friendIds = userFriends.map(friendship => 
-      friendship.userId === parseInt(session.user.id) ? friendship.friendId : friendship.userId
+      friendship.userId === session.user.id ? friendship.friendId : friendship.userId
     );
 
     const feedPosts = await prisma.birdPost.findMany({

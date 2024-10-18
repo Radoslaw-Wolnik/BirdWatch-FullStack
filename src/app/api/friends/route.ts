@@ -1,114 +1,103 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
-import { PrismaClient } from "@prisma/client";
-import { UnauthorizedError, BadRequestError, NotFoundError, InternalServerError } from '@/lib/errors';
-import logger from '@/lib/logger';
+// File: src/pages/api/friends/index.ts
 
-const prisma = new PrismaClient();
+import { NextApiRequest, NextApiResponse } from 'next';
+import { getServerSession } from 'next-auth/next';
+import prisma from '@/lib/prisma';
+import { authOptions } from '@/lib/auth';
+import { BadRequestError, UnauthorizedError, NotFoundError, ConflictError } from '@/lib/errors';
+import { SafeFriendship, FriendshipStatus } from '@/types/global';
 
-export async function GET(req: Request) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const session = await getServerSession(req, res, authOptions);
+
+  if (!session) {
+    throw new UnauthorizedError('You must be logged in to perform this action');
+  }
+
+  switch (req.method) {
+    case 'POST':
+      return handleSendFriendRequest(req, res, session.user.id);
+    case 'GET':
+      return handleGetFriendships(req, res, session.user.id);
+    default:
+      res.setHeader('Allow', ['POST', 'GET']);
+      res.status(405).end(`Method ${req.method} Not Allowed`);
+  }
+}
+
+async function handleSendFriendRequest(req: NextApiRequest, res: NextApiResponse, currentUserId: number) {
   try {
-    const session = await getServerSession(authOptions);
-
-    if (!session) {
-      throw new UnauthorizedError();
+    const { friendId } = req.body;
+    
+    if (!friendId || typeof friendId !== 'number') {
+      throw new BadRequestError('Invalid friend ID');
     }
 
-    const friends = await prisma.friendship.findMany({
+    if (friendId === currentUserId) {
+      throw new BadRequestError('You cannot send a friend request to yourself');
+    }
+
+    const existingFriendship = await prisma.friendship.findFirst({
       where: {
         OR: [
-          { userId: parseInt(session.user.id), status: 'ACCEPTED' },
-          { friendId: parseInt(session.user.id), status: 'ACCEPTED' },
+          { userId: currentUserId, friendId: friendId },
+          { userId: friendId, friendId: currentUserId },
+        ],
+      },
+    });
+
+    if (existingFriendship) {
+      throw new ConflictError('Friendship or request already exists');
+    }
+
+    const newFriendship = await prisma.friendship.create({
+      data: {
+        userId: currentUserId,
+        friendId: friendId,
+        status: FriendshipStatus.PENDING,
+      },
+      include: {
+        user: {
+          select: { id: true, username: true, profilePicture: true, role: true }
+        },
+        friend: {
+          select: { id: true, username: true, profilePicture: true, role: true }
+        },
+      },
+    });
+
+    res.status(201).json(newFriendship as SafeFriendship);
+  } catch (error) {
+    if (error instanceof BadRequestError || error instanceof ConflictError) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+    console.error('Send friend request error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+async function handleGetFriendships(req: NextApiRequest, res: NextApiResponse, currentUserId: number) {
+  try {
+    const friendships = await prisma.friendship.findMany({
+      where: {
+        OR: [
+          { userId: currentUserId },
+          { friendId: currentUserId },
         ],
       },
       include: {
-        user: true,
-        friend: true,
+        user: {
+          select: { id: true, username: true, profilePicture: true, role: true }
+        },
+        friend: {
+          select: { id: true, username: true, profilePicture: true, role: true }
+        },
       },
     });
 
-    return NextResponse.json(friends);
+    res.status(200).json(friendships as SafeFriendship[]);
   } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    logger.error('Unhandled error in fetching friends', { error });
-    throw new InternalServerError();
-  }
-}
-
-export async function POST(req: Request) {
-  try {
-    const session = await getServerSession(authOptions);
-
-    if (!session) {
-      throw new UnauthorizedError();
-    }
-
-    const { friendId } = await req.json();
-
-    if (!friendId) {
-      throw new BadRequestError("Friend ID is required");
-    }
-
-    const friendship = await prisma.friendship.create({
-      data: {
-        userId: parseInt(session.user.id),
-        friendId: friendId,
-        status: 'PENDING',
-      },
-    });
-
-    logger.info('Friend request sent', { userId: session.user.id, friendId });
-    return NextResponse.json(friendship, { status: 201 });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    logger.error('Unhandled error in friend request', { error });
-    throw new InternalServerError();
-  }
-}
-
-export async function PUT(req: Request) {
-  try {
-    const session = await getServerSession(authOptions);
-
-    if (!session) {
-      throw new UnauthorizedError();
-    }
-
-    const { friendshipId, action } = await req.json();
-
-    if (!friendshipId || !action) {
-      throw new BadRequestError("Friendship ID and action are required");
-    }
-
-    if (action !== 'ACCEPT' && action !== 'DECLINE') {
-      throw new BadRequestError("Invalid action. Must be either 'ACCEPT' or 'DECLINE'");
-    }
-
-    const friendship = await prisma.friendship.findUnique({
-      where: { id: friendshipId },
-    });
-
-    if (!friendship || friendship.friendId !== parseInt(session.user.id)) {
-      throw new NotFoundError("Friendship request not found");
-    }
-
-    const updatedFriendship = await prisma.friendship.update({
-      where: { id: friendshipId },
-      data: { status: action === 'ACCEPT' ? 'ACCEPTED' : 'DECLINED' },
-    });
-
-    logger.info(`Friend request ${action.toLowerCase()}ed`, { userId: session.user.id, friendshipId });
-    return NextResponse.json(updatedFriendship);
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    logger.error('Unhandled error in updating friendship', { error });
-    throw new InternalServerError();
+    console.error('Get friendships error:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 }

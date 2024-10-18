@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from '@/lib/auth';
 import { PrismaClient } from "@prisma/client";
-import { UnauthorizedError, NotFoundError, InternalServerError } from '@/lib/errors';
+import { UnauthorizedError, NotFoundError, InternalServerError, AppError } from '@/lib/errors';
 import logger from '@/lib/logger';
 
 const prisma = new PrismaClient();
@@ -16,7 +16,7 @@ export async function GET(req: Request) {
     }
 
     const user = await prisma.user.findUnique({
-      where: { id: parseInt(session.user.id) },
+      where: { id: session.user.id },
       select: {
         id: true,
         username: true,

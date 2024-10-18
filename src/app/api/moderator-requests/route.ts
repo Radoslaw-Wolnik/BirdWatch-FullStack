@@ -1,58 +1,85 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
-import { PrismaClient } from "@prisma/client";
-import { UnauthorizedError, BadRequestError, ForbiddenError, InternalServerError } from '@/lib/errors';
-import logger from '@/lib/logger';
+// File: src/pages/api/moderator-requests/route.ts
 
-const prisma = new PrismaClient();
+import { NextApiRequest, NextApiResponse } from 'next';
+import { getServerSession } from 'next-auth/next';
+import prisma from '@/lib/prisma';
+import { authOptions } from '@/lib/auth';
+import { BadRequestError, UnauthorizedError, ForbiddenError } from '@/lib/errors';
+import { SafeModeratorRequest, UserRole } from '@/types/global';
+import { moderatorRequestSchema } from '@/lib/validationSchemas';
 
-export async function POST(req: Request) {
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const session = await getServerSession(req, res, authOptions);
+
+  if (!session) {
+    throw new UnauthorizedError('You must be logged in to perform this action');
+  }
+
+  switch (req.method) {
+    case 'POST':
+      return handleCreateModeratorRequest(req, res, session.user.id);
+    case 'GET':
+      return handleGetModeratorRequests(req, res, session.user.role);
+    default:
+      res.setHeader('Allow', ['POST', 'GET']);
+      res.status(405).end(`Method ${req.method} Not Allowed`);
+  }
+}
+
+async function handleCreateModeratorRequest(req: NextApiRequest, res: NextApiResponse, userId: number) {
   try {
-    const session = await getServerSession(authOptions);
+    const validatedData = moderatorRequestSchema.parse(req.body);
 
-    if (!session) {
-      throw new UnauthorizedError();
-    }
-
-    const { description, qualifications, location } = await req.json();
-
-    if (!description || !qualifications || !location) {
-      throw new BadRequestError("Missing required fields");
-    }
-
-    const user = await prisma.user.findUnique({
-      where: { id: parseInt(session.user.id) },
-      include: {
-        posts: true,
-        friends: true,
-      },
+    const existingRequest = await prisma.moderatorRequest.findFirst({
+      where: { userId: userId },
     });
 
-    if (!user) {
-      throw new NotFoundError("User not found");
+    if (existingRequest) {
+      throw new BadRequestError('You have already submitted a moderator request');
     }
 
-    if (user.posts.length < 10 || user.friends.length < 5) {
-      throw new ForbiddenError("User does not meet requirements for moderator");
-    }
-
-    const moderatorRequest = await prisma.moderatorRequest.create({
+    const newRequest = await prisma.moderatorRequest.create({
       data: {
-        userId: user.id,
-        description,
-        qualifications,
-        location,
+        ...validatedData,
+        userId: userId,
+      },
+      include: {
+        user: {
+          select: { id: true, username: true, profilePicture: true, role: true }
+        },
       },
     });
 
-    logger.info('Moderator request submitted', { userId: user.id });
-    return NextResponse.json(moderatorRequest, { status: 201 });
+    res.status(201).json(newRequest as SafeModeratorRequest);
   } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    if (error instanceof BadRequestError) {
+      return res.status(error.statusCode).json({ message: error.message });
     }
-    logger.error('Unhandled error in creating moderator request', { error });
-    throw new InternalServerError();
+    console.error('Create moderator request error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+async function handleGetModeratorRequests(req: NextApiRequest, res: NextApiResponse, userRole: UserRole) {
+  try {
+    if (userRole !== UserRole.ADMIN) {
+      throw new ForbiddenError('You are not authorized to view moderator requests');
+    }
+
+    const requests = await prisma.moderatorRequest.findMany({
+      include: {
+        user: {
+          select: { id: true, username: true, profilePicture: true, role: true }
+        },
+      },
+    });
+
+    res.status(200).json(requests as SafeModeratorRequest[]);
+  } catch (error) {
+    if (error instanceof ForbiddenError) {
+      return res.status(error.statusCode).json({ message: error.message });
+    }
+    console.error('Get moderator requests error:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 }

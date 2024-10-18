@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
 import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
+import { authOptions } from '@/lib/auth';
 import { PrismaClient } from "@prisma/client";
-import { UnauthorizedError, ForbiddenError, BadRequestError, InternalServerError } from '@/lib/errors';
+import { UnauthorizedError, ForbiddenError, BadRequestError, InternalServerError, AppError } from '@/lib/errors';
 import logger from '@/lib/logger';
-import { calculateDistance } from '@/lib/geoUtils';
+import { calculateDistanceInKm } from '@/lib/geoUtils';
+import { Coordinates } from '@/types';
 
 const prisma = new PrismaClient();
 
@@ -27,7 +28,7 @@ export async function GET(req: Request) {
     const lon = parseFloat(searchParams.get('lon') || '0');
 
     const moderator = await prisma.user.findUnique({
-      where: { id: parseInt(session.user.id) },
+      where: { id: session.user.id },
       select: { id: true, moderatorRequests: { select: { location: true } } }
     });
 
@@ -43,13 +44,18 @@ export async function GET(req: Request) {
       orderBy: { createdAt: 'desc' },
     });
 
+    const moderatorCoords: Coordinates = {
+      latitude: moderatorLat,
+      longitude: moderatorLon
+    };
+
     const filteredPosts = flaggedPosts.filter(flaggedPost => {
-      const distance = calculateDistance(
-        moderatorLat,
-        moderatorLon,
-        flaggedPost.post.latitude,
-        flaggedPost.post.longitude
-      );
+      const postCoords: Coordinates = {
+        latitude: flaggedPost.post.latitude,
+        longitude: flaggedPost.post.longitude
+      };
+    
+      const distance = calculateDistanceInKm(moderatorCoords, postCoords);
       return distance <= 1000; // 1000 km radius
     });
 

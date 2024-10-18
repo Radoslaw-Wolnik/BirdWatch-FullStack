@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { PrismaClient } from "@prisma/client";
-import { BadRequestError, InternalServerError } from '@/lib/errors';
+import prisma from "@/lib/prisma";
+import { Prisma } from "@prisma/client";
+import { BadRequestError, InternalServerError, AppError } from '@/lib/errors';
 import logger from '@/lib/logger';
-
-const prisma = new PrismaClient();
 
 export async function GET(req: Request) {
   try {
@@ -27,7 +26,7 @@ export async function GET(req: Request) {
       SELECT id, latitude, longitude, bird_species
       FROM "BirdPost"
       WHERE earth_distance(ll_to_earth(latitude, longitude), ll_to_earth(${lat}, ${lon})) <= ${radius * 1000}
-      ${prisma.Prisma.raw(whereClause)}
+      ${Prisma.raw(whereClause)}
     `;
 
     logger.info('Map view posts fetched', { lat, lon, radius, birdSpecies });

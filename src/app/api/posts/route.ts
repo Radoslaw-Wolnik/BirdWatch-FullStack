@@ -1,91 +1,94 @@
-import { NextResponse } from 'next/server';
-import { getServerSession } from "next-auth/next";
-import { authOptions } from "../auth/[...nextauth]/route";
-import { PrismaClient } from "@prisma/client";
-import { UnauthorizedError, BadRequestError, InternalServerError } from '@/lib/errors';
-import logger from '@/lib/logger';
+// File: src/pages/api/posts/route.ts
 
-const prisma = new PrismaClient();
+import { NextApiRequest, NextApiResponse } from 'next';
+import { getServerSession } from 'next-auth/next';
+import prisma from '@/lib/prisma';
+import { authOptions } from '../auth/[...nextauth]/route';
+import { createPostSchema } from '@/lib/validationSchemas';
+import { BadRequestError, UnauthorizedError } from '@/lib/errors';
+import { SafeBirdPost, PaginationParams, SortParams } from '@/types/global';
 
-export async function POST(req: Request) {
-  try {
-    const session = await getServerSession(authOptions);
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  const session = await getServerSession(req, res, authOptions);
 
-    if (!session) {
-      throw new UnauthorizedError();
-    }
+  if (!session) {
+    throw new UnauthorizedError('You must be logged in to perform this action');
+  }
 
-    const { birdSpecies, description, latitude, longitude, photos, customDate } = await req.json();
-
-    if (!birdSpecies || !description || latitude === undefined || longitude === undefined) {
-      throw new BadRequestError("Missing required fields");
-    }
-
-    // Validate customDate is not more than one month in the past
-    const oneMonthAgo = new Date();
-    oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
-    const postDate = customDate ? new Date(customDate) : new Date();
-    
-    if (postDate < oneMonthAgo) {
-      throw new BadRequestError("Custom date cannot be more than one month in the past");
-    }
-
-    const post = await prisma.birdPost.create({
-      data: {
-        userId: parseInt(session.user.id),
-        birdSpecies: Array.isArray(birdSpecies) ? birdSpecies : [birdSpecies],
-        description,
-        latitude,
-        longitude,
-        photos,
-        createdAt: postDate,
-      },
-    });
-
-    logger.info('New bird post created', { userId: session.user.id, postId: post.id });
-    return NextResponse.json(post, { status: 201 });
-  } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
-    }
-    logger.error('Unhandled error in creating post', { error });
-    throw new InternalServerError();
+  switch (req.method) {
+    case 'POST':
+      return handleCreatePost(req, res, session.user.id);
+    case 'GET':
+      return handleGetPosts(req, res);
+    default:
+      res.setHeader('Allow', ['POST', 'GET']);
+      res.status(405).end(`Method ${req.method} Not Allowed`);
   }
 }
 
-export async function GET(req: Request) {
+async function handleCreatePost(req: NextApiRequest, res: NextApiResponse, userId: number) {
   try {
-    const { searchParams } = new URL(req.url);
-    const lat = parseFloat(searchParams.get('lat') || '0');
-    const lon = parseFloat(searchParams.get('lon') || '0');
-    const radius = parseInt(searchParams.get('radius') || '100');
-    const page = parseInt(searchParams.get('page') || '1');
-    const limit = parseInt(searchParams.get('limit') || '10');
-    const birdSpecies = searchParams.get('species');
+    const validatedData = createPostSchema.parse(req.body);
 
-    if (isNaN(lat) || isNaN(lon) || isNaN(radius) || isNaN(page) || isNaN(limit)) {
-      throw new BadRequestError("Invalid query parameters");
-    }
+    const newPost = await prisma.birdPost.create({
+      data: {
+        ...validatedData,
+        userId,
+        birdId: (await prisma.bird.findFirstOrThrow({ where: { species: validatedData.birdSpecies } })).id,
+      },
+      include: {
+        user: {
+          select: { id: true, username: true, profilePicture: true, role: true }
+        },
+        bird: true,
+      },
+    });
 
-    const whereClause = birdSpecies
-      ? `AND '${birdSpecies}' = ANY(bird_species)`
-      : '';
-
-    const posts = await prisma.$queryRaw`
-      SELECT * FROM "BirdPost"
-      WHERE earth_distance(ll_to_earth(latitude, longitude), ll_to_earth(${lat}, ${lon})) <= ${radius * 1000}
-      ${prisma.Prisma.raw(whereClause)}
-      ORDER BY created_at DESC
-      LIMIT ${limit} OFFSET ${(page - 1) * limit}
-    `;
-
-    logger.info('Bird posts fetched', { lat, lon, radius, page, limit, birdSpecies });
-    return NextResponse.json(posts);
+    res.status(201).json(newPost as SafeBirdPost);
   } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    if (error instanceof BadRequestError) {
+      return res.status(error.statusCode).json({ message: error.message });
     }
-    logger.error('Unhandled error in fetching posts', { error });
-    throw new InternalServerError();
+    console.error('Create post error:', error);
+    res.status(500).json({ message: 'Internal server error' });
+  }
+}
+
+async function handleGetPosts(req: NextApiRequest, res: NextApiResponse) {
+  try {
+    const { page = '1', limit = '10', sortBy = 'createdAt', order = 'desc' } = req.query;
+
+    const paginationParams: PaginationParams = {
+      page: parseInt(page as string, 10),
+      limit: parseInt(limit as string, 10),
+    };
+
+    const sortParams: SortParams = {
+      field: sortBy as string,
+      order: order as 'asc' | 'desc',
+    };
+
+    const posts = await prisma.birdPost.findMany({
+      skip: (paginationParams.page - 1) * paginationParams.limit,
+      take: paginationParams.limit,
+      orderBy: { [sortParams.field]: sortParams.order },
+      include: {
+        user: {
+          select: { id: true, username: true, profilePicture: true, role: true }
+        },
+        bird: true,
+      },
+    });
+
+    const totalPosts = await prisma.birdPost.count();
+
+    res.status(200).json({
+      posts: posts as SafeBirdPost[],
+      totalPages: Math.ceil(totalPosts / paginationParams.limit),
+      currentPage: paginationParams.page,
+    });
+  } catch (error) {
+    console.error('Get posts error:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 }

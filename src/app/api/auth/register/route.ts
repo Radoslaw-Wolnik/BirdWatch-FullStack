@@ -1,50 +1,59 @@
-import { NextResponse } from 'next/server';
-import { PrismaClient } from "@prisma/client";
+// File: src/pages/api/auth/register.ts
+
+import { NextApiRequest, NextApiResponse } from 'next';
 import bcrypt from 'bcrypt';
-import { BadRequestError, ConflictError, InternalServerError } from '@/lib/errors';
-import logger from '@/lib/logger';
+import prisma from '@/lib/prisma';
+import { registerUserSchema } from '@/lib/validationSchemas';
+import { BadRequestError, ConflictError } from '@/lib/errors';
+import { SafeUser } from '@/types/global';
 
-const prisma = new PrismaClient();
+export default async function handler(req: NextApiRequest, res: NextApiResponse) {
+  if (req.method !== 'POST') {
+    return res.status(405).json({ message: 'Method not allowed' });
+  }
 
-export async function POST(req: Request) {
   try {
-    const { username, email, password } = await req.json();
-
-    if (!username || !email || !password) {
-      throw new BadRequestError("Missing required fields");
-    }
-
+    const validatedData = registerUserSchema.parse(req.body);
+    
     const existingUser = await prisma.user.findFirst({
       where: {
         OR: [
-          { username },
-          { email }
+          { email: validatedData.email },
+          { username: validatedData.username }
         ]
       }
     });
 
     if (existingUser) {
-      throw new ConflictError("Username or email already exists");
+      throw new ConflictError('User already exists');
     }
 
-    const hashedPassword = await bcrypt.hash(password, 10);
+    const hashedPassword = await bcrypt.hash(validatedData.password, 10);
 
     const newUser = await prisma.user.create({
       data: {
-        username,
-        email,
+        ...validatedData,
         password: hashedPassword,
       },
     });
 
-    const { password: _, ...userWithoutPassword } = newUser;
-    logger.info('New user registered', { userId: newUser.id });
-    return NextResponse.json(userWithoutPassword, { status: 201 });
+    const safeUser: SafeUser = {
+      id: newUser.id,
+      username: newUser.username,
+      email: newUser.email,
+      role: newUser.role,
+      profilePicture: newUser.profilePicture,
+      createdAt: newUser.createdAt,
+      lastActive: newUser.lastActive,
+      deactivated: null,
+    };
+
+    res.status(201).json(safeUser);
   } catch (error) {
-    if (error instanceof AppError) {
-      return NextResponse.json({ error: error.message }, { status: error.statusCode });
+    if (error instanceof BadRequestError || error instanceof ConflictError) {
+      return res.status(error.statusCode).json({ message: error.message });
     }
-    logger.error('Unhandled error in user registration', { error });
-    throw new InternalServerError();
+    console.error('Registration error:', error);
+    res.status(500).json({ message: 'Internal server error' });
   }
 }
