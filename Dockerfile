@@ -25,13 +25,13 @@ RUN npm run build
 # Expose the port the app runs on
 EXPOSE 3000
 
-# Create a directory for logs
-RUN mkdir -p /app/logs
+# Create directories for logs and uploads
+RUN mkdir -p /app/logs \
+    && mkdir -p /app/public/uploads/users \
+    && mkdir -p /app/public/uploads/posts \
+    && mkdir -p /app/public/uploads/bird-icons
 
-# Create uploads directory
-RUN mkdir -p public/uploads
-
-# Set permissions for the logs directory
-RUN chmod 777 /app/logs
+# Set permissions for the logs and uploads directories
+RUN chmod -R 755 /app/logs /app/public/uploads
 
 CMD ["npm", "start"]
