@@ -1,11 +1,9 @@
-// File: src/lib/auth.ts
-
 import { NextAuthOptions } from "next-auth";
 import CredentialsProvider from "next-auth/providers/credentials";
 import { PrismaAdapter } from "@next-auth/prisma-adapter";
 import bcrypt from "bcrypt";
 import prisma from "@/lib/prisma";
-import { LoginCredentials, SafeUser, UserRole, SessionUser } from "@/types/global";
+import { LoginCredentials, SafeUser, UserRole, SessionUser, PublicUser } from "@/types/global";
 import { UnauthorizedError } from "@/lib/errors";
 
 declare module "next-auth" {
@@ -60,12 +58,13 @@ export const authOptions: NextAuthOptions = {
     })
   ],
   session: {
-    strategy: "jwt"
+    strategy: "jwt",
+    maxAge: 30 * 24 * 60 * 60, // 30 days
   },
   callbacks: {
     async jwt({ token, user }) {
       if (user) {
-        token.id = Number(user.id); // idk is it better to have it as number or string? ? ?
+        token.id = Number(user.id);
         token.role = user.role;
         token.username = user.username;
       }
@@ -84,4 +83,25 @@ export const authOptions: NextAuthOptions = {
   pages: {
     signIn: "/login",
   },
+  secret: process.env.NEXTAUTH_SECRET,
 };
+
+// its a good practice to make this function:
+// export async function authenticateUser(username: string, password: string): Promise<AuthUser> { ... }
+
+export async function getUserById(id: string): Promise<PublicUser | null> {
+  const user = await prisma.user.findUnique({
+    where: { id: parseInt(id) }
+  });
+
+  if (!user) {
+    return null;
+  }
+
+  return {
+    id: user.id,
+    username: user.username,
+    role: user.role as UserRole,
+    profilePicture: user.profilePicture,
+  };
+}
