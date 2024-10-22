@@ -1,164 +1,266 @@
-# BirdWatch API Documentation
+# API Documentation
 
 ## Table of Contents
 1. [Authentication](#authentication)
-2. [Auth Routes](#auth-routes)
-3. [Post Routes](#post-routes)
-4. [User Routes](#user-routes)
+2. [Admin Routes](#admin-routes)
+3. [Auth Routes](#auth-routes)
+4. [Bird Routes](#bird-routes)
 5. [Friend Routes](#friend-routes)
-6. [Moderation Routes](#moderation-routes)
+6. [Moderator Routes](#moderator-routes)
+7. [Post Routes](#post-routes)
+8. [Profile Routes](#profile-routes)
+9. [Search Routes](#search-routes)
+10. [Upload Routes](#upload-routes)
 
 ## Authentication
 
-Most endpoints require authentication. Authentication is handled using NextAuth.js. When a user logs in successfully, a session will be created. API routes are protected using NextAuth's built-in mechanisms. Authentication requirement is indicated for each endpoint as follows:
+Most endpoints require authentication using NextAuth.js with session-based authentication. Authentication is handled using secure HTTP-only cookies. When a user logs in successfully, a session will be created and maintained through cookies.
 
+Authentication requirement is indicated for each endpoint as follows:
 - 🔓 No authentication required
 - 🔒 User authentication required
-- 🔑 Moderator authentication required
-- 👑 Admin authentication required
+- 🔑 Admin authentication required
+- 👥 Moderator authentication required
+
+## Admin Routes
+
+### Get Admin Dashboard
+```
+🔑 GET /api/admin?action=<action>
+Query Parameters: { action: 'inactiveUsers' | 'moderatorRequests' | 'flaggedPosts' }
+Response: <Requested Data>
+```
+
+### Admin Actions
+```
+🔑 POST /api/admin
+Body: { action: 'deleteUser' | 'approveModerator' | 'deletePost', id: number }
+Response: { message: string }
+```
+
+### Get Admin Analytics
+```
+🔑 GET /api/admin/analytics
+Response: {
+  userStats: { totalUsers: number, newUsersLastWeek: number },
+  postStats: { totalPosts: number, newPostsLastWeek: number },
+  topBirds: Array<{ id: number, name: string, postCount: number }>,
+  topPosters: Array<{ id: number, username: string, postCount: number }>,
+  moderationStats: { pendingFlaggedPosts: number }
+}
+```
 
 ## Auth Routes
 
-#### Register
+### Register
 ```
 🔓 POST /api/auth/register
 Body: { username: string, email: string, password: string }
-Response: { message: "User registered successfully" }
+Response: SafeUser
 ```
 
-#### Login (handled by NextAuth)
+### NextAuth Routes
 ```
-🔓 POST /api/auth/signin
-Body: { username: string, password: string }
-Response: Redirects to callback URL or homepage
-```
-
-#### Logout (handled by NextAuth)
-```
-🔒 GET /api/auth/signout
-Response: Redirects to homepage
+🔓 [...nextauth] /api/auth/[...nextauth]
+Handles all NextAuth.js authentication routes
 ```
 
-## Post Routes
+## Bird Routes
 
-#### Create Post
+### Submit Bird Icon
 ```
-🔒 POST /api/posts
-Body: { birdSpecies: string[], description: string, latitude: number, longitude: number, photos?: string[], customDate?: Date }
-Response: { id: string, ...postData }
-```
-
-#### Get Posts
-```
-🔒 GET /api/posts
-Query: { lat: number, lon: number, radius: number, page?: number, limit?: number, species?: string }
-Response: { data: [PostObject], meta: { total: number, page: number, limit: number, pages: number } }
+🔒 POST /api/bird-icons
+Body: FormData { birdSpecies: string, icon: File }
+Response: SafeSubmitBirdIcon
 ```
 
-#### Update Post
+### Get Bird Icon Submissions
 ```
-🔒 PUT /api/posts/[id]
-Body: { birdSpecies?: string[], description?: string, photos?: string[] }
-Response: { id: string, ...updatedPostData }
-```
-
-#### Delete Post
-```
-🔒 DELETE /api/posts/[id]
-Response: { message: "Post deleted successfully" }
-```
-
-#### Like/Unlike Post
-```
-🔒 POST /api/posts/[id]/like
-Response: { id: string, likesCount: number }
-```
-
-#### Flag Post
-```
-🔒 POST /api/posts/[id]/flag
-Body: { reason: string }
-Response: { message: "Post flagged successfully" }
-```
-
-## User Routes
-
-#### Get User Profile
-```
-🔒 GET /api/users/[id]
-Response: { id: string, username: string, profilePicture: string, createdAt: Date, role: string, postsCount: number, friendsCount: number }
-```
-
-#### Update User Profile
-```
-🔒 PUT /api/users/[id]
-Body: { profilePicture?: string }
-Response: { id: string, ...updatedUserData }
-```
-
-#### Search Users
-```
-🔒 GET /api/users/search
-Query: { q: string }
-Response: [{ id: string, username: string, profilePicture: string }]
+🔒 GET /api/bird-icons
+Response: SafeSubmitBirdIcon[]
 ```
 
 ## Friend Routes
 
-#### Send Friend Request
+### Get User Feed
 ```
-🔒 POST /api/friends/request
-Body: { friendId: string }
-Response: { message: "Friend request sent" }
-```
-
-#### Accept/Decline Friend Request
-```
-🔒 PUT /api/friends/[requestId]
-Body: { action: "accept" | "decline" }
-Response: { message: "Friend request accepted/declined" }
+🔒 GET /api/feed
+Query Parameters: { page?: number, limit?: number }
+Response: Array<BirdPost>
 ```
 
-#### Get Friends List
+### Send Friend Request
+```
+🔒 POST /api/friends
+Body: { friendId: number }
+Response: SafeFriendship
+```
+
+### Get Friendships
 ```
 🔒 GET /api/friends
-Response: [{ id: string, username: string, profilePicture: string }]
+Response: SafeFriendship[]
 ```
 
-## Moderation Routes
-
-#### Get Flagged Posts
+### Update Friendship
 ```
-🔑 GET /api/moderation/flagged
-Query: { page?: number, limit?: number }
-Response: { data: [FlaggedPostObject], meta: { total: number, page: number, limit: number, pages: number } }
+🔒 PUT /api/friendships/:id
+Body: { action: 'accept' | 'decline' }
+Response: SafeFriendship
 ```
 
-#### Resolve Flagged Post
+### Delete Friendship
 ```
-🔑 POST /api/moderation/flagged/[id]
-Body: { action: "resolve" | "dismiss" }
-Response: { message: "Flagged post resolved/dismissed" }
-```
-
-#### Get Moderator Requests
-```
-👑 GET /api/moderation/requests
-Query: { page?: number, limit?: number }
-Response: { data: [ModeratorRequestObject], meta: { total: number, page: number, limit: number, pages: number } }
+🔒 DELETE /api/friendships/:id
+Response: 204 No Content
 ```
 
-#### Approve/Reject Moderator Request
+## Moderator Routes
+
+### Submit Moderator Request
 ```
-👑 POST /api/moderation/requests/[id]
-Body: { action: "approve" | "reject" }
-Response: { message: "Moderator request approved/rejected" }
+🔒 POST /api/moderator-requests
+Body: { description: string, qualifications: string, location: string }
+Response: SafeModeratorRequest
 ```
 
-## Notes on API Usage
+### Get Moderator Requests
+```
+🔑 GET /api/moderator-requests
+Response: SafeModeratorRequest[]
+```
 
-1. Ensure proper error handling on the client-side for all API calls.
-2. Implement appropriate loading states in the UI while waiting for API responses.
-3. For real-time features, consider implementing WebSocket connections using Next.js API routes with the `socket.io` library.
-4. Implement rate limiting on the server to prevent abuse of the API.
-5. Keep authentication tokens secure and implement proper token refresh mechanisms.
+### Get Flagged Posts (Moderator)
+```
+👥 GET /api/moderator
+Query Parameters: { page?: number, limit?: number, lat?: number, lon?: number }
+Response: Array<SafeFlaggedPost>
+```
+
+### Handle Flagged Post
+```
+👥 POST /api/moderator
+Body: { flaggedPostId: number, action: 'RESOLVE' | 'DISMISS' }
+Response: FlaggedPost
+```
+
+## Post Routes
+
+### Create Post
+```
+🔒 POST /api/posts
+Body: { description: string, birdSpecies: string, latitude: number, longitude: number, photos: string[] }
+Response: SafeBirdPost
+```
+
+### Get Posts
+```
+🔒 GET /api/posts
+Query Parameters: { page?: number, limit?: number, sortBy?: string, order?: 'asc' | 'desc' }
+Response: { posts: SafeBirdPost[], totalPages: number, currentPage: number }
+```
+
+### Get Single Post
+```
+🔒 GET /api/posts/:id
+Response: SafeBirdPost
+```
+
+### Update Post
+```
+🔒 PUT /api/posts/:id
+Body: FormData with post data
+Response: SafeBirdPost
+```
+
+### Delete Post
+```
+🔒 DELETE /api/posts/:id
+Response: 204 No Content
+```
+
+### React to Post
+```
+🔒 POST /api/posts/:id/reactions
+Body: { type: 'like' | 'dislike' }
+Response: SafeLike | SafeDislike
+```
+
+### Remove Reaction
+```
+🔒 DELETE /api/posts/:id/reactions
+Body: { type: 'like' | 'dislike' }
+Response: 204 No Content
+```
+
+### Flag Post
+```
+🔒 POST /api/posts/:id/flag
+Body: { reason: string }
+Response: SafeFlaggedPost
+```
+
+## Profile Routes
+
+### Get User Profile
+```
+🔒 GET /api/users/profile
+Response: SafeUser
+```
+
+### Get User Profile by ID
+```
+🔒 GET /api/users/:id/profile
+Response: PublicUser
+```
+
+### Update Profile
+```
+🔒 PUT /api/users/:id/profile
+Body: { username?: string, profilePicture?: string }
+Response: SafeUser
+```
+
+### Update Profile Picture
+```
+🔒 POST /api/users/:id/profile-picture
+Body: FormData { file: File }
+Response: { id: number, username: string, profilePicture: string }
+```
+
+## Search Routes
+
+### Search Users
+```
+🔒 GET /api/users/search
+Query Parameters: { q: string }
+Response: Array<{ id: number, username: string, profilePicture: string }>
+```
+
+### Search Content
+```
+🔒 GET /api/search
+Query Parameters: { query: string, type: 'birds' | 'posts', page?: number, limit?: number }
+Response: {
+  results: Array<SafeBird | SafeBirdPost>,
+  pagination: { currentPage: number, totalPages: number, totalItems: number }
+}
+```
+
+## Map Routes
+
+### Get Map Posts
+```
+🔒 GET /api/map
+Query Parameters: { lat: number, lon: number, radius?: number, species?: string[] }
+Response: Array<{ id: number, latitude: number, longitude: number, bird_species: string[] }>
+```
+
+## Upload Routes
+
+### Upload File
+```
+🔒 POST /api/upload
+Body: FormData { file: File }
+Response: { fileUrl: string }
+```

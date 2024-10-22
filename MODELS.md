@@ -1,21 +1,39 @@
-# BirdWatch Models Documentation
+# Database Models Documentation
 
-This document provides an overview of the data models used in the BirdWatch application. These models are defined using Prisma schema language and represent tables in the PostgreSQL database.
+## Entity Relationship Diagram
 
-## Table of Contents
-1. [User](#user)
-2. [BirdPost](#birdpost)
-3. [Like](#like)
-4. [Friendship](#friendship)
-5. [ModeratorRequest](#moderatorrequest)
-6. [FlaggedPost](#flaggedpost)
+```mermaid
+erDiagram
+    User ||--o{ BirdPost : "creates"
+    User ||--o{ Like : "gives"
+    User ||--o{ Dislike : "gives"
+    User ||--o{ Friendship : "initiates"
+    User ||--o{ ModeratorRequest : "submits"
+    User ||--o{ FlaggedPost : "flags"
+    User ||--o{ BirdIcon : "uploads"
+    User ||--o{ SubmitBirdIcon : "submits"
+    User ||--o{ Token : "has"
+    
+    Bird ||--o{ BirdPost : "referenced in"
+    Bird ||--|| BirdIcon : "has"
+    
+    BirdPost ||--o{ Like : "receives"
+    BirdPost ||--o{ Dislike : "receives"
+    BirdPost ||--o{ FlaggedPost : "gets flagged as"
 
-## User
+    User }|--|| UserRole : "has"
+    Friendship }|--|| FriendshipStatus : "has"
+    ModeratorRequest }|--|| RequestStatus : "has"
+    FlaggedPost }|--|| FlagStatus : "has"
+    SubmitBirdIcon }|--|| SubmissionStatus : "has"
+    Token }|--|| TokenType : "has"
+```
 
-The User model represents registered users of the application.
+## Database Tables
 
-```prisma
-model User {
+### User
+```sql
+Table User {
   id                Int           @id @default(autoincrement())
   username          String        @unique
   email             String        @unique
@@ -24,15 +42,188 @@ model User {
   profilePicture    String?
   createdAt         DateTime      @default(now())
   lastActive        DateTime      @default(now())
+  deactivated       DateTime?
+
+  // Relations
   posts             BirdPost[]
   likes             Like[]
+  dislikes          Dislike[]
   friends           Friendship[]  @relation("UserFriends")
   friendsOf         Friendship[]  @relation("FriendsOfUser")
   moderatorRequests ModeratorRequest[]
   flaggedPosts      FlaggedPost[]
-  deactivated       DateTime?
+  tokens            Token[]
+  birdIcons         BirdIcon[]
+  submittedIcons    SubmitBirdIcon[]
 }
+```
 
+### Bird
+```sql
+Table Bird {
+  id          Int          @id @default(autoincrement())
+  name        String
+  species     String
+  description String
+  iconId      Int?         @unique
+  
+  // Relations
+  icon        BirdIcon?    @relation(fields: [iconId], references: [id])
+  birdPosts   BirdPost[]
+}
+```
+
+### BirdPost
+```sql
+Table BirdPost {
+  id          Int       @id @default(autoincrement())
+  userId      Int
+  birdId      Int
+  description String
+  latitude    Float
+  longitude   Float
+  photos      String[]
+  createdAt   DateTime  @default(now())
+  
+  // Relations
+  user        User      @relation(fields: [userId], references: [id])
+  bird        Bird      @relation(fields: [birdId], references: [id])
+  likes       Like[]
+  dislikes    Dislike[]
+  flags       FlaggedPost[]
+}
+```
+
+### BirdIcon
+```sql
+Table BirdIcon {
+  id            Int      @id @default(autoincrement())
+  url           String
+  birdId        Int?
+  uploadedById  Int
+  verified      Boolean  @default(false)
+  
+  // Relations
+  bird          Bird?    
+  uploadedBy    User     @relation(fields: [uploadedById], references: [id])
+}
+```
+
+### SubmitBirdIcon
+```sql
+Table SubmitBirdIcon {
+  id          Int              @id @default(autoincrement())
+  url         String
+  userId      Int
+  status      SubmissionStatus @default(PENDING)
+  createdAt   DateTime         @default(now())
+  
+  // Relations
+  user        User             @relation(fields: [userId], references: [id])
+}
+```
+
+### Friendship
+```sql
+Table Friendship {
+  id        Int              @id @default(autoincrement())
+  userId    Int
+  friendId  Int
+  status    FriendshipStatus
+  createdAt DateTime         @default(now())
+  
+  // Relations
+  user      User             @relation("UserFriends", fields: [userId], references: [id])
+  friend    User             @relation("FriendsOfUser", fields: [friendId], references: [id])
+  
+  @@unique([userId, friendId])
+}
+```
+
+### ModeratorRequest
+```sql
+Table ModeratorRequest {
+  id             Int           @id @default(autoincrement())
+  userId         Int
+  description    String
+  qualifications String
+  location       String
+  status         RequestStatus @default(PENDING)
+  createdAt      DateTime      @default(now())
+  
+  // Relations
+  user           User          @relation(fields: [userId], references: [id])
+}
+```
+
+### FlaggedPost
+```sql
+Table FlaggedPost {
+  id        Int        @id @default(autoincrement())
+  postId    Int
+  userId    Int
+  reason    String
+  status    FlagStatus @default(PENDING)
+  createdAt DateTime   @default(now())
+  
+  // Relations
+  post      BirdPost   @relation(fields: [postId], references: [id])
+  user      User       @relation(fields: [userId], references: [id])
+}
+```
+
+### Like
+```sql
+Table Like {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  postId    Int
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+  post      BirdPost @relation(fields: [postId], references: [id])
+  
+  @@unique([userId, postId])
+}
+```
+
+### Dislike
+```sql
+Table Dislike {
+  id        Int      @id @default(autoincrement())
+  userId    Int
+  postId    Int
+  createdAt DateTime @default(now())
+  
+  // Relations
+  user      User     @relation(fields: [userId], references: [id])
+  post      BirdPost @relation(fields: [postId], references: [id])
+  
+  @@unique([userId, postId])
+}
+```
+
+### Token
+```sql
+Table Token {
+  id        Int       @id @default(autoincrement())
+  userId    Int
+  token     String    @unique
+  type      TokenType
+  expiresAt DateTime
+  createdAt DateTime  @default(now())
+  isActive  Boolean   @default(true)
+  
+  // Relations
+  user      User      @relation(fields: [userId], references: [id])
+}
+```
+
+## Enums
+
+### UserRole
+```typescript
 enum UserRole {
   USER
   MODERATOR
@@ -40,60 +231,8 @@ enum UserRole {
 }
 ```
 
-## BirdPost
-
-The BirdPost model represents bird sighting posts created by users.
-
-```prisma
-model BirdPost {
-  id          Int       @id @default(autoincrement())
-  userId      Int
-  user        User      @relation(fields: [userId], references: [id])
-  birdSpecies String[]
-  description String
-  latitude    Float
-  longitude   Float
-  photos      String[]
-  createdAt   DateTime  @default(now())
-  likes       Like[]
-  flags       FlaggedPost[]
-}
-```
-
-## Like
-
-The Like model represents likes on bird posts.
-
-```prisma
-model Like {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
-  postId    Int
-  post      BirdPost @relation(fields: [postId], references: [id])
-  createdAt DateTime @default(now())
-
-  @@unique([userId, postId])
-}
-```
-
-## Friendship
-
-The Friendship model represents connections between users.
-
-```prisma
-model Friendship {
-  id        Int      @id @default(autoincrement())
-  userId    Int
-  user      User     @relation("UserFriends", fields: [userId], references: [id])
-  friendId  Int
-  friend    User     @relation("FriendsOfUser", fields: [friendId], references: [id])
-  status    FriendshipStatus
-  createdAt DateTime @default(now())
-
-  @@unique([userId, friendId])
-}
-
+### FriendshipStatus
+```typescript
 enum FriendshipStatus {
   PENDING
   ACCEPTED
@@ -101,22 +240,8 @@ enum FriendshipStatus {
 }
 ```
 
-## ModeratorRequest
-
-The ModeratorRequest model represents requests from users to become moderators.
-
-```prisma
-model ModeratorRequest {
-  id           Int      @id @default(autoincrement())
-  userId       Int
-  user         User     @relation(fields: [userId], references: [id])
-  description  String
-  qualifications String
-  location     String
-  status       RequestStatus @default(PENDING)
-  createdAt    DateTime @default(now())
-}
-
+### RequestStatus
+```typescript
 enum RequestStatus {
   PENDING
   APPROVED
@@ -124,22 +249,8 @@ enum RequestStatus {
 }
 ```
 
-## FlaggedPost
-
-The FlaggedPost model represents posts that have been flagged for moderation.
-
-```prisma
-model FlaggedPost {
-  id        Int      @id @default(autoincrement())
-  postId    Int
-  post      BirdPost @relation(fields: [postId], references: [id])
-  userId    Int
-  user      User     @relation(fields: [userId], references: [id])
-  reason    String
-  status    FlagStatus @default(PENDING)
-  createdAt DateTime @default(now())
-}
-
+### FlagStatus
+```typescript
 enum FlagStatus {
   PENDING
   RESOLVED
@@ -147,43 +258,21 @@ enum FlagStatus {
 }
 ```
 
-## Relationships
-
-- A User can have multiple BirdPosts (one-to-many)
-- A User can have multiple Likes (one-to-many)
-- A User can have multiple Friendships (many-to-many through Friendship model)
-- A User can have multiple ModeratorRequests (one-to-many)
-- A User can flag multiple posts (one-to-many through FlaggedPost model)
-- A BirdPost can have multiple Likes (one-to-many)
-- A BirdPost can have multiple Flags (one-to-many through FlaggedPost model)
-
-## Indexes
-
-Prisma automatically creates indexes for relation fields and unique fields. For additional performance optimization, consider adding the following indexes:
-
-```prisma
-@@index([userId])
-@@index([postId])
-@@index([createdAt])
+### SubmissionStatus
+```typescript
+enum SubmissionStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
 ```
 
-## Notes
-
-1. All models use auto-incrementing integers for primary keys.
-2. Passwords should be hashed before storage in the User model.
-3. The `BirdPost` model uses a string array for `birdSpecies` to allow multiple species per post.
-4. The `photos` field in `BirdPost` is an array of strings, presumably URLs to uploaded images.
-5. Proper error handling should be implemented when interacting with these models, especially for unique constraint violations.
-6. Consider implementing data retention policies, especially for the `BirdPost` and `FlaggedPost` models.
-
-To apply these models to your database, use the following Prisma command:
-
-```
-npx prisma db push
-```
-
-For making changes to the schema, create and apply migrations using:
-
-```
-npx prisma migrate dev --name your_migration_name
+### TokenType
+```typescript
+enum TokenType {
+  PASSWORD_RESET
+  ACCOUNT_VERIFICATION
+  ONE_TIME_LOGIN
+  DEACTIVATION
+}
 ```
